@@ -22,8 +22,36 @@ fn win32_string(value: &str) -> Vec<u16> {
         .collect()
 }
 
-fn rawinput_list_devices(
+// TODO: Stack overflow.
+unsafe fn rawinput_list_devices(
 ) {
+    let mut sz: UINT = 0;
+    let rc = GetRawInputDeviceList(
+        null_mut(),
+        &mut sz as *mut _,
+        size_of::<RAWINPUTDEVICELIST>() as u32
+    );
+
+    let mut rids = vec![RAWINPUTDEVICELIST {
+        hDevice: null_mut(),
+        dwType: 0
+    }].into_raw_parts();
+    let rc = GetRawInputDeviceList(
+        rids.0 as *mut _,
+        &mut sz as *mut _,
+        size_of::<RAWINPUTDEVICELIST>() as u32
+    );
+
+    let mut rids = Vec::from_raw_parts(
+        rids.0, rids.1, rids.2
+    );
+    for i in 0..(sz as usize) {
+        println!(
+            "hDev: {} type: {}",
+            rids[i].hDevice as usize,
+            rids[i].dwType as usize
+        );
+    }
 }
 
 unsafe extern "system" fn wndproc(
@@ -32,7 +60,12 @@ unsafe extern "system" fn wndproc(
     wParam: WPARAM,
     lParam: LPARAM
 ) -> LRESULT {
-    DefWindowProcW(hWnd, message, wParam, lParam)
+    match message {
+        WM_CREATE => {
+            DefWindowProcW(hWnd, message, wParam, lParam)
+        },
+        _ => DefWindowProcW(hWnd, message, wParam, lParam)
+    }
 }
 
 pub fn main() {
