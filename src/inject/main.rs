@@ -22,7 +22,6 @@ fn win32_string(value: &str) -> Vec<u16> {
         .collect()
 }
 
-// TODO: Stack overflow.
 unsafe fn rawinput_list_devices(
 ) {
     let mut sz: UINT = 0;
@@ -35,7 +34,7 @@ unsafe fn rawinput_list_devices(
     let mut rids = vec![RAWINPUTDEVICELIST {
         hDevice: null_mut(),
         dwType: 0
-    }].into_raw_parts();
+    }; sz as usize].into_raw_parts();
     let rc = GetRawInputDeviceList(
         rids.0 as *mut _,
         &mut sz as *mut _,
@@ -64,6 +63,14 @@ unsafe extern "system" fn wndproc(
         WM_CREATE => {
             DefWindowProcW(hWnd, message, wParam, lParam)
         },
+        // TODO: Fix, below doesn't work.
+        WM_DESTROY => {
+            PostQuitMessage(0);
+            0
+        },
+        WM_QUIT => {
+            std::process::exit(0)
+        }
         _ => DefWindowProcW(hWnd, message, wParam, lParam)
     }
 }
@@ -108,6 +115,10 @@ pub fn main() {
         let rc = ShowWindow(
             handle, SW_SHOW | SW_RESTORE
         );
+
+        let rc = AllocConsole();
+
+        rawinput_list_devices();
 
         loop {
             let mut message: MSG = MaybeUninit::zeroed().assume_init();
