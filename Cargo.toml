@@ -1,0 +1,25 @@
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[package]
+name = "winrecord"
+version = "0.1.0"
+authors = ["Sid"]
+edition = "2018"
+
+[lib]
+name = "payload"
+path = "src/payload/lib.rs"
+crate-type = ["lib", "cdylib"]
+
+[[bin]]
+name = "inject"
+path = "src/inject/main.rs"
+
+[[bin]]
+name = "winrecord"
+path = "src/winrecord/main.rs"
+
+[dependencies]
+widestring = "*"
+winapi = {version = "*", features = ["winuser"]}
+user32-sys = "*"
+kernel32-sys = "*"
