@@ -50,9 +50,9 @@ fn rawinput_list_devices(
         );
         for i in 0..(sz as usize) {
             println!(
-                "hDev: {} type: {}",
-                rids[i].hDevice as usize,
-                rids[i].dwType as usize
+                "hDev: {:?} type: {:?}",
+                rids[i].hDevice,
+                rids[i].dwType
             );
 
             let mut ssz: UINT = 0;
@@ -85,6 +85,30 @@ fn rawinput_list_devices(
                 &mut di as *mut _ as *mut _,
                 &mut ssz as *mut _
             );
+
+            if di.dwType == RIM_TYPEHID {
+                let mut ssz: UINT = 0;
+                let _rc = GetRawInputDeviceInfoW(
+                    rids[i].hDevice,
+                    RIDI_PREPARSEDDATA,
+                    null_mut(),
+                    &mut ssz as *mut _
+                );
+                println!("RIDI_PREPARSEDDATA ssz: {}", ssz);
+
+                let ppd = vec![0 as u8; ssz as usize]
+                    .into_raw_parts();
+                let _rc = GetRawInputDeviceInfoW(
+                    rids[i].hDevice,
+                    RIDI_PREPARSEDDATA,
+                    ppd.0 as *mut _,
+                    &mut ssz as *mut _
+                );
+
+                let ppd = Vec::from_raw_parts(ppd.0, ppd.1, ppd.2);
+                println!("{:?}", ppd);
+            }
+
             match di.dwType {
                 RIM_TYPEMOUSE => {
                     println!(
@@ -165,7 +189,7 @@ pub fn main() {
             lpszClassName: name.as_ptr()
         };
 
-        RegisterClassW(&wndclass);
+        let _rc = RegisterClassW(&wndclass);
         let handle = CreateWindowExW(
             WS_EX_CLIENTEDGE,
             name.as_ptr(),
