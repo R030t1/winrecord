@@ -10,7 +10,10 @@ use std::ffi::*;
 use std::os::windows::ffi::OsStrExt;
 use std::iter::*;
 
+use widestring::*;
+
 use kernel32::*;
+use winapi::ctypes::*;
 use winapi::shared::windef::*;
 use winapi::shared::minwindef::*;
 use winapi::um::winuser::*;
@@ -22,46 +25,112 @@ fn win32_string(value: &str) -> Vec<u16> {
         .collect()
 }
 
-unsafe fn rawinput_list_devices(
+fn rawinput_list_devices(
 ) {
-    let mut sz: UINT = 0;
-    let rc = GetRawInputDeviceList(
-        null_mut(),
-        &mut sz as *mut _,
-        size_of::<RAWINPUTDEVICELIST>() as u32
-    );
-
-    let mut rids = vec![RAWINPUTDEVICELIST {
-        hDevice: null_mut(),
-        dwType: 0
-    }; sz as usize].into_raw_parts();
-    let rc = GetRawInputDeviceList(
-        rids.0 as *mut _,
-        &mut sz as *mut _,
-        size_of::<RAWINPUTDEVICELIST>() as u32
-    );
-
-    let mut rids = Vec::from_raw_parts(
-        rids.0, rids.1, rids.2
-    );
-    for i in 0..(sz as usize) {
-        println!(
-            "hDev: {} type: {}",
-            rids[i].hDevice as usize,
-            rids[i].dwType as usize
+    unsafe {
+        let mut sz: UINT = 0;
+        let _rc = GetRawInputDeviceList(
+            null_mut(),
+            &mut sz as *mut _,
+            size_of::<RAWINPUTDEVICELIST>() as u32
         );
+
+        let rids = vec![RAWINPUTDEVICELIST {
+            hDevice: null_mut(),
+            dwType: u32::MAX
+        }; sz as usize].into_raw_parts();
+        let _rc = GetRawInputDeviceList(
+            rids.0 as *mut _,
+            &mut sz as *mut _,
+            size_of::<RAWINPUTDEVICELIST>() as u32
+        );
+
+        let rids = Vec::from_raw_parts(
+            rids.0, rids.1, rids.2
+        );
+        for i in 0..(sz as usize) {
+            println!(
+                "hDev: {} type: {}",
+                rids[i].hDevice as usize,
+                rids[i].dwType as usize
+            );
+
+            let mut ssz: UINT = 0;
+            let _rc = GetRawInputDeviceInfoW(
+                rids[i].hDevice,
+                RIDI_DEVICENAME,
+                null_mut(),
+                &mut ssz as *mut _
+            );
+
+            let name = vec![0 as wchar_t; ssz as usize]
+                .into_raw_parts();
+            let _rc = GetRawInputDeviceInfoW(
+                rids[i].hDevice,
+                RIDI_DEVICENAME,
+                name.0 as *mut _,
+                &mut ssz as *mut _
+            );
+
+            let name = Vec::from_raw_parts(name.0, name.1, name.2);
+            let n = U16CString::from_vec_with_nul(name)
+                .unwrap();
+            println!("{}", n.to_string_lossy());
+
+            let mut di: RID_DEVICE_INFO = MaybeUninit::zeroed().assume_init();
+            let mut ssz = size_of::<RID_DEVICE_INFO>() as UINT;
+            let _rc = GetRawInputDeviceInfoW(
+                rids[i].hDevice,
+                RIDI_DEVICEINFO,
+                &mut di as *mut _ as *mut _,
+                &mut ssz as *mut _
+            );
+            match di.dwType {
+                RIM_TYPEMOUSE => {
+                    println!(
+                        "{} {} {} {}",
+                        di.u.mouse().dwId,
+                        di.u.mouse().dwNumberOfButtons,
+                        di.u.mouse().dwSampleRate,
+                        di.u.mouse().fHasHorizontalWheel
+                    )
+                },
+                RIM_TYPEKEYBOARD => {
+                    println!(
+                        "{} {} {} {} {} {}",
+                        di.u.keyboard().dwType,
+                        di.u.keyboard().dwSubType,
+                        di.u.keyboard().dwKeyboardMode,
+                        di.u.keyboard().dwNumberOfFunctionKeys,
+                        di.u.keyboard().dwNumberOfIndicators,
+                        di.u.keyboard().dwNumberOfKeysTotal
+                    )
+                },
+                RIM_TYPEHID => {
+                    println!(
+                        "{} {} {} {} {}",
+                        di.u.hid().dwVendorId,
+                        di.u.hid().dwProductId,
+                        di.u.hid().dwVersionNumber,
+                        di.u.hid().usUsagePage,
+                        di.u.hid().usUsage
+                    )
+                },
+                _ => ()
+            }
+        }
     }
 }
 
 unsafe extern "system" fn wndproc(
-    hWnd: HWND,
+    hwnd: HWND,
     message: UINT,
-    wParam: WPARAM,
-    lParam: LPARAM
+    wparam: WPARAM,
+    lparam: LPARAM
 ) -> LRESULT {
     match message {
         WM_CREATE => {
-            DefWindowProcW(hWnd, message, wParam, lParam)
+            DefWindowProcW(hwnd, message, wparam, lparam)
         },
         // TODO: Fix, below doesn't work.
         WM_DESTROY => {
@@ -71,7 +140,7 @@ unsafe extern "system" fn wndproc(
         WM_QUIT => {
             std::process::exit(0)
         }
-        _ => DefWindowProcW(hWnd, message, wParam, lParam)
+        _ => DefWindowProcW(hwnd, message, wparam, lparam)
     }
 }
 
@@ -112,11 +181,10 @@ pub fn main() {
             null_mut()
         );
 
-        let rc = ShowWindow(
+        let _rc = ShowWindow(
             handle, SW_SHOW | SW_RESTORE
         );
-
-        let rc = AllocConsole();
+        let _rc = AllocConsole();
 
         rawinput_list_devices();
 
