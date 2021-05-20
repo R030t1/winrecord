@@ -10,6 +10,8 @@ use std::ffi::*;
 use std::os::windows::ffi::OsStrExt;
 use std::iter::*;
 
+use std::io;
+
 use widestring::*;
 
 use kernel32::*;
@@ -146,6 +148,22 @@ fn rawinput_list_devices(
     }
 }
 
+unsafe fn windowshook_setup() {
+    let payload = LoadLibraryW(
+        U16String::from_os_str("payload.dll").as_ptr()
+    );
+    println!("{:?}", payload);
+
+    let wndproc = GetProcAddress(
+        payload, OsStr::new("wndproc").to_str().unwrap().as_ptr() as *const i8
+    );
+    println!("{:?}", wndproc);
+    transmute::<
+        *const std::ffi::c_void,
+        unsafe extern "system" fn() -> ()
+    >(wndproc)();
+}
+
 unsafe extern "system" fn wndproc(
     hwnd: HWND,
     message: UINT,
@@ -211,6 +229,8 @@ pub fn main() {
         let _rc = AllocConsole();
 
         rawinput_list_devices();
+
+        windowshook_setup();
 
         loop {
             let mut message: MSG = MaybeUninit::zeroed().assume_init();

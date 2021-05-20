@@ -19,8 +19,9 @@ name = "winrecord"
 path = "src/winrecord/main.rs"
 
 [dependencies]
+lazy_static = "*"
 widestring = "*"
-winapi = {version = "*", features = ["winuser"]}
+winapi = {version = "*", features = ["minwinbase", "winuser"]}
 user32-sys = "*"
 kernel32-sys = "*"
 tokio = "*"
