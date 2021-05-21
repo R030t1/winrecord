@@ -49,6 +49,8 @@ extern "system" fn DllMain(
             println!("Attach.");
             thread::spawn(|| {
                 println!("Thread.");
+                let t = unsafe { GetCurrentProcessId() };
+                std::fs::File::create(format!("C:\\Test\\{}", t))
             });
             TRUE
         },

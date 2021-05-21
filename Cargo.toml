@@ -19,6 +19,7 @@ name = "winrecord"
 path = "src/winrecord/main.rs"
 
 [dependencies]
+clap = "*"
 lazy_static = "*"
 widestring = "*"
 winapi = {version = "*", features = ["minwinbase", "winuser"]}

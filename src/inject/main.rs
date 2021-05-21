@@ -4,6 +4,8 @@ extern crate winapi;
 extern crate kernel32;
 extern crate user32;
 
+use clap::{Arg, App};
+
 use std::ptr::*;
 use std::mem::*;
 use std::ffi::*;
@@ -148,20 +150,46 @@ fn rawinput_list_devices(
     }
 }
 
-unsafe fn windowshook_setup() {
+unsafe fn windowshook_setup(title: &str) {
+    // TODO: Occasionally won't find module (or procedure) with generic message.
     let payload = LoadLibraryW(
         U16String::from_os_str("payload.dll").as_ptr()
     );
     println!("{:?}", payload);
+    if payload == MaybeUninit::zeroed().assume_init() {
+        println!("{:?}", io::Error::last_os_error())
+    }
 
     let wndproc = GetProcAddress(
         payload, OsStr::new("wndproc").to_str().unwrap().as_ptr() as *const i8
     );
     println!("{:?}", wndproc);
-    transmute::<
+    if wndproc == MaybeUninit::zeroed().assume_init() {
+        println!("{:?}", io::Error::last_os_error());
+    }
+
+    println!("Looking for \"{}\".", title);
+    let h = FindWindowW(
+        null_mut(),
+        U16CString::from_os_str("").unwrap().as_ptr()
+    );
+    println!("Return: {:?}", h);
+
+    let t = GetWindowThreadProcessId(h, null_mut());
+    let hwp = SetWindowsHookExW(
+        WH_CALLWNDPROC,
+        transmute::<*const std::ffi::c_void, HOOKPROC>(wndproc),
+        payload as *mut _,
+        t
+    );
+    println!("SetWindowsHookEx: {:?}", hwp);
+
+    /*transmute::<
         *const std::ffi::c_void,
         unsafe extern "system" fn() -> ()
-    >(wndproc)();
+    >(wndproc)();*/
+
+
 }
 
 unsafe extern "system" fn wndproc(
@@ -187,7 +215,21 @@ unsafe extern "system" fn wndproc(
 }
 
 pub fn main() {
+    let matches = App::new("inject")
+        .version("0.1.0")
+        .author("Sid Spry")
+        .about("Inject windows desktop hook DLL into program")
+        .arg(Arg::with_name("title")
+            .help("Title of window to hook")
+            .short("t")
+            .long("title")
+            .value_name("TITLE")
+            .takes_value(true)
+            .required(true))
+        .get_matches();
+
     unsafe {
+
         let name = win32_string("inject");
         let title = win32_string("inject");
 
@@ -230,7 +272,7 @@ pub fn main() {
 
         rawinput_list_devices();
 
-        windowshook_setup();
+        windowshook_setup(matches.value_of("title").unwrap());
 
         loop {
             let mut message: MSG = MaybeUninit::zeroed().assume_init();
